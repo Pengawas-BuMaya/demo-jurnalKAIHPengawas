@@ -57,6 +57,22 @@
 
         // --- KONFIGURASI SISTEM ---
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby1vNpu6sp2LZ1x8jT8BREMIGe5jeCqHdN8zAVK0cnrSlcNjF9ztdyLnYDs7oWQ3Sig/exec";
+        
+        // --- FIREBASE INITIALIZATION (DIPINDAHKAN KE SINI AGAR STABIL) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBPyQ7VvSnumxYWm3-TL8t_3qru15eX7fA",
+            authDomain: "jurnal-smpn7-dedai.firebaseapp.com",
+            projectId: "jurnal-smpn7-dedai",
+            storageBucket: "jurnal-smpn7-dedai.firebasestorage.app",
+            messagingSenderId: "342279014464",
+            appId: "1:342279014464:web:51209b7c49675b2715b7a5"
+        };
+
+        // Inisialisasi satu kali saja
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'gugus-anggrek-jurnal';
 
         const GUGUS_SCHOOLS = [
             { id: 1, name: "SDN BENER 1", pin: "BNR125" },
@@ -272,7 +288,7 @@
             );
         }
 
-        function ParentDashboard({ user, school, onExit, db, appId }) {
+        function ParentDashboard({ user, school, onExit }) {
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
             const [log, setLog] = useState(null);
 
@@ -319,7 +335,7 @@
             );
         }
 
-        function TeacherDashboard({ user, school, onExit, db, appId }) {
+        function TeacherDashboard({ user, school, onExit }) {
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
             const [studentLogs, setStudentLogs] = useState([]);
             const [expandedId, setExpandedId] = useState(null);
@@ -333,7 +349,7 @@
                     logs.push({ id: studentSafeId, name: student, filled: snap.exists(), data: snap.exists() ? snap.data() : null });
                 }
                 setStudentLogs(logs);
-            }, [studentsInClass, date, school.id, appId, db]);
+            }, [studentsInClass, date, school.id]);
 
             useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
@@ -395,7 +411,7 @@
             );
         }
 
-        function JurnalDashboard({ user, school, onExit, db, appId }) {
+        function JurnalDashboard({ user, school, onExit }) {
             const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
             const [log, setLog] = useState({});
             const [filled, setFilled] = useState(false);
@@ -430,7 +446,10 @@
                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'daily_logs', `log_${school.id}_${studentSafeId}_${date}`), savePayload);
                     sendToSheet(savePayload);
                     alert("Jurnal Pembiasaan Berhasil Disimpan!");
-                } catch(e) {}
+                } catch(e) {
+                    console.error(e);
+                    alert("Gagal menyimpan data: " + e.message);
+                }
             };
 
             return (
@@ -478,12 +497,6 @@
 
         // --- MAIN APP ---
         function App() {
-            const firebaseConfig = JSON.parse(__firebase_config || '{}');
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'gugus-anggrek-jurnal';
-            const app = useMemo(() => initializeApp(firebaseConfig), [firebaseConfig]);
-            const auth = useMemo(() => getAuth(app), [app]);
-            const db = useMemo(() => getFirestore(app), [app]);
-
             const [selectedSchool, setSelectedSchool] = useState(null);
             const [showPinModal, setShowPinModal] = useState(false);
             const [step, setStep] = useState('portal'); 
@@ -496,11 +509,20 @@
 
             useEffect(() => {
                 const initAuth = async () => {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
-                    else await signInAnonymously(auth);
+                    try {
+                        if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
+                             await signInWithCustomToken(auth, window.__initial_auth_token);
+                        } else {
+                             // Jika tidak ada token custom, force error untuk masuk ke catch
+                             throw new Error('No custom token');
+                        }
+                    } catch (error) {
+                        console.warn("Custom token auth failed, falling back to anonymous:", error);
+                        await signInAnonymously(auth);
+                    }
                 };
                 initAuth();
-            }, [auth]);
+            }, []);
 
             const availableClasses = useMemo(() => selectedSchool ? Object.keys(DATABASE_SISWA[selectedSchool.id.toString()] || {}) : [], [selectedSchool]);
             const availableStudents = useMemo(() => (selectedSchool && selectedClass) ? DATABASE_SISWA[selectedSchool.id.toString()][selectedClass] || [] : [], [selectedSchool, selectedClass]);
@@ -573,9 +595,9 @@
                 </div>
             );
 
-            if (step === 'dashboard-guru') return <TeacherDashboard user={appUser} school={selectedSchool} onExit={() => { setStep('portal'); setAppUser(null); }} db={db} appId={appId} />;
-            if (step === 'dashboard-ortu') return <ParentDashboard user={appUser} school={selectedSchool} onExit={() => { setStep('portal'); setAppUser(null); }} db={db} appId={appId} />;
-            if (step === 'dashboard-siswa') return <JurnalDashboard user={appUser} school={selectedSchool} onExit={() => { setStep('portal'); setAppUser(null); }} db={db} appId={appId} />;
+            if (step === 'dashboard-guru') return <TeacherDashboard user={appUser} school={selectedSchool} onExit={() => { setStep('portal'); setAppUser(null); }} />;
+            if (step === 'dashboard-ortu') return <ParentDashboard user={appUser} school={selectedSchool} onExit={() => { setStep('portal'); setAppUser(null); }} />;
+            if (step === 'dashboard-siswa') return <JurnalDashboard user={appUser} school={selectedSchool} onExit={() => { setStep('portal'); setAppUser(null); }} />;
             
             return <div className="h-screen flex items-center justify-center text-slate-300 font-bold animate-pulse text-xs tracking-widest uppercase">Memproses Data Portal...</div>;
         }
