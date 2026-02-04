@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Portal Jurnal KAIH - Gugus Anggrek</title>
+    
+    <!-- Pustaka React & Babel -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Firebase SDK (Modular v11) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.FirebaseSDK = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, getDoc, collection, onSnapshot };
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: #f1f5f9; 
+            margin: 0;
+            min-height: 100vh;
+        }
+        .animate-fade-in-up { animation: fadeInUp 0.4s ease-out; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .school-card { transition: all 0.3s ease; }
+        .school-card:hover { transform: translateY(-4px); }
+        
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .glass-header {
+            background: rgba(30, 64, 175, 0.9);
+            backdrop-filter: blur(10px);
+        }
+        .student-list-container::-webkit-scrollbar { width: 4px; }
+        .student-list-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useCallback } = React;
+        const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, getDoc, collection, onSnapshot } = window.FirebaseSDK;
+
+        // --- KONFIGURASI SISTEM ---
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby1vNpu6sp2LZ1x8jT8BREMIGe5jeCqHdN8zAVK0cnrSlcNjF9ztdyLnYDs7oWQ3Sig/exec";
+
+        const GUGUS_SCHOOLS = [
+            { id: 1, name: "SDN BENER 1", pin: "BNR125" },
+            { id: 2, name: "SDN BENER 2", pin: "BNR249" },
+            { id: 3, name: "SDN BENER 3", pin: "BNR361" },
+            { id: 4, name: "SDN BENER 4", pin: "BNR490" },
+            { id: 5, name: "SDN KEBONROMO 1", pin: "KBR163" },
+            { id: 6, name: "SDN KEBONROMO 2", pin: "KBR228" },
+            { id: 7, name: "SDN KEBONROMO 3", pin: "KBR395" },
+            { id: 8, name: "SDN KEBONROMO 4", pin: "KBR441" },
+            { id: 9, name: "SDN KEBONROMO 5", pin: "KBR572" }
+        ];
+
+        // Database Siswa Lengkap
+        const DATABASE_SISWA = {
+            "1": { "1": ["ABIDIN KIHALI HABIBI", "ACHASILA PUTRI DESWITA", "ARSAKA SETYA NUGRAHA", "ARVAN ALDI SANJAYA", "ASKA NAYLA PUTRI", "DUWI SATRIO", "Gibran Axelle Arvino", "LYDIA AGNES SARWANTO", "MUHAMMAD FATHAR GUSTAWAN", "MUHAMMAD RAZKA PRATAMA", "NABIL WAHYU RAMADHAN", "TORIQ AL SANDRA PERMANA"], "2": ["AHMAD NUGROHO", "ALMER KHALIL MUAZZAM", "ARISHA CITRA ANGGRAINI", "AULIA SILOMIA", "LATHIF KURNIAWAN", "MUHAMMAD ZAFRAN ALFAREZKY", "NOVAN DWI ARYA WAHYU PRASETIA", "YOSY RATNA DIAN PRATIWI"], "3": ["ADSKHAN FAEYZA WIDYATNA RABBANI", "AISYAH NUR RAMADANI", "ARKHA NUR RAHMAN", "CHUSINA CHUROTUL 'AINI", "GHIRAS REYNANDO AHSAN", "KHADIJAH SALIM", "MUHAMMAD ALVIN ARAFLI", "NATAN ABDUL GANI", "ZASKIA PUTRI RAHMADHANI", "ABIZAR ARFAN MAULANA"], "4": ["FARAH HIMA AYU JANAWI", "HAMIZAN ALBY PRASETYO", "IRFAN PUTRA PERMANA", "PUTRI ASSYFAH", "MUHAMAD HASBY AZKA PUTRA", "ADITYA AQILA PUTRA"], "5": ["AFIKA USWATUN KHASANAH", "ALBY PRADIPTA VIRENDRA", "ARINDHA SIH NUGRAHA", "AYUNDA ISKAM RAHAYU", "CORRY LAFIKA MAHESWARI", "NASYTHA NAURA KRASIVA", "RAZIQ HANAN NOVANTIO", "FATMA KUMALA SARI", "NEUFALLIO BAGUS ARDIANSYAH"], "6": ["CITRA ABDILLAH HANDAYANI", "ADELINA KARISTA PUTRI", "AIHAM PUTRA WANDA PRATAMA", "ALBYAN AQILA WIBOWO", "ALDIKO SURYA WARDANA", "ALYA NIRMALA PUTRI", "BADRA KUSUMA DWI WIJAYANTI", "BAHRUL ABDULLAH ALQORI", "BINTARI EMBUN KARTIKA SARI", "DIMAS HARJUNA PUTRA", "HAFIZA MAULIDA NUR AFIFAH", "KHILYATUSY SYARIFAH", "RIANA CANTIKA PUTRI", "THALITA ELLA COLONICA", "VANDIAZ IZZAN GUSTAWAN", "YULYANDA MUANJARISTA", "YUSUF DWI ALIANSYAH"] },
+            "2": { "1": ["AFNAN AL MUBAROK", "AHSAN AQIL AR RAFIF", "Alesha Permata Wijaya", "ALLATIF SETYOBUDI", "ALVINO KHOLIF FARESTA", "AZKHANAYA TRISHA OKTAVIANKA", "FATIMAH SHALIHA NURUL JANNAH", "GANIA ALMAHYRA TISA PRAMONO", "Gisya Nafeeza Dwi Santoso", "KEYSHA NOVARIA PUTRI", "MARYAM HUMAIRA SUDIAS MONO", "MAULANA DANISH ALFAREZI", "MAULANA TINO ALSANI", "MUHAMAD AL VINO KEY NO ERLANDO", "MUHAMMAD AZRIEL TRI NUGRAHA", "MUHAMMAD AZRIL HERLAMBANG", "MUHAMMAD ZAFRAN ARIFKY PANUNTUN", "RAID MAQIL ATAUBAQ", "RAKHA ADINATA ISTANTO", "REYNDRA AN NAAFI", "RUMMAANA YUMNA", "SATRIA FAIZAN AKBAR ROMADHON", "SHABIRA HASNA LUTHFIA", "TIARA AYLA AZZAHRA SYAKIRA", "WAFINDRA WIPANG WRAHADNALA", "WAHYU AJI PAMUNGKAS", "ZAFRAN MAULANA ALFARIZKY", "ZULAIKA MAY YAKHSYA"], "2": ["AINUHA SYAFA BENYTA", "AKHTAR NARENDRA SAPUTRO", "AL VANO BILAL AL GANI", "ALECIA BALQIS ELVINA", "ALIFIA HAFIZAH SETIYONO", "ARFAN NUR KHASANAH", "DAFFA MUHAMMAD AL FATHIH", "EZRA ALBYANO", "GENTATAMA HENDRA WIDIATMOKO", "JOKO PRIYANTO", "KAMILA SHALIHATUN NUFUS", "KESHYA AYU WANDIRA", "KEVIN ADI NOVIYANTO", "KIKI SATRIA MANDALA", "MARCELLINO", "MUHAMAD FAZRI AKBAR", "MUHAMMAD DONI PRATAMA", "MUHAMMAD FATHAN ATHALLA", "NARENDRA MUHAMMAD FARZAN", "PANGGALIH YUSUF PRATAMA", "RAFIF APTA ARDHANA", "RAKHA RIFAT MALIK", "RAYYAN BRAMASTA ALFARIZQI RIYADI", "RENDRA AZKA RAFFASYA", "SHAFINA CARISA PUTRI", "SYAHNA HAMDA AL MEIRA", "VERA MARLIYANA", "YASMIN KARIN SAPUTRI"], "3": ["ADIA KINANTHI WIBOWO", "ALLYSIA RAMADHANI HARYONO", "ANINDITA KEISHA ZAHRA", "ARKA NOVAL FIRMANSYAH", "CLARA ALMIRA KIRANA", "DHEYVAN KEYVIDA ALVINWY", "DIAZ RAFASYA FATHURRAHMAN", "DIEGO AHMAD AL FAHRIO", "FERO INFANTERI", "FINO KAVALERI", "JANNATA HIYAL MA'WA", "KANAYA ALESANA ARZETI", "KANIA BILQIS GINANJAR", "KHOLIFA ALFATHUNISA", "MOHAMMAD ARFAN RIZKIANTO", "MOHAMMAD AZIZ AL FATHAN NIZAR", "MUHAMMAD AYUB ALFARIZI", "MYSHA YAN PUTRI", "RAFKA MUTTAQI RAMADHAN", "RAFLI ADYANATA AZHAR", "RAKHA PRADIPTA SUSANTO", "RALINE ZHAFIRA KHANZA", "RIZQITA AZHARI", "SEPTIANINDRA RISCAHYA FATMAWATI", "SYAKILA AZAHRA PUTRI", "TRISNA ALIF MUTAKIM", "ZAB'DAN SYAKURO", "ZAHRA ZANITHA"], "4": ["ADAM FIKRI RIZQULLAH", "AL VINO BILAL AL GANI", "ALIKA NAILA PUTRI", "ANINDYA ISYANA LAMUN", "ARDIAN NUGROHO", "ARIMBI JOLIN NURAINI", "ASSYIFA RIZKI BIQOLBI", "BRYZAN ALIF ALFAREZA", "DHEVI PUTRI ARYANI", "FAIREL ATHARIZZ RAHMAN", "FARIDA FAJAR SETYOWATI", "FAUZAN NUR ROHMAN", "HARYANTO", "HUSNA AYUDIA INARA", "IHDINA AMANDA PUTRI", "JENITA RAHMA", "JULITA PUTRI ANNASTASYA", "KQIRANIA ZIDNI INARA", "LATHIFATUN YASMIN", "Muhamad Fahri Albar", "MUHAMMAD AVICENNA KENZIE SAID", "MUHAMMAD FIRDAUS ILHAM", "MUIZ ALI IMRON", "NADILA NUR HAFIDZAH", "NAFISA KANSA HARIAWAN", "RIFAI IBRAN DAROJAD", "SHELLA FAHIRA EFENDI", "SYIFA AQILA", "TARA PUSPITASARI", "VINO ARDIANSYAH"], "5": ["afisotul alianisa", "alzyan berwynd pratama", "Andrajaya", "ARSYAD AS SIDIQ", "BERLIAN SAKTIA OKTAVIARI", "BILQIS FITRI HARYADIN", "DESTA LATIF SAFAHILLAH", "Dhavid Arya Nugraha", "dinar ayu resita", "GALUH PRATAMA", "GALYN FARDIAZTIN ADDARA", "MUHAMMAD NIZHAM SYAPUTRA", "NADINE EKA PRASETYA", "NAJWA ALAYYA SAPUTRO", "NAUFAL DAFFA ALGHAZALI", "NAYLA ARUM MAULIDA", "OKTA GALANG ABDUL HAFIZ", "QUEEN SAFIRA JOYO SUSILO", "RASYA AL BRYAN LIEM", "TSABITA SAKHI", "venia nur karima", "ZAEINAYA MIFTACHUL JANNAH"], "6": ["AFRIZAL FASANO", "ANNISAH HUMAIRAH", "arya yudistira", "Bayu Jati Pamungkas", "CAESA PUSPITA PUTRI", "CEISYA WIDYA ACQUILA", "CEMPAKA SUBHANA PUTRI ASTRI", "DEYMADIYAH SINTA WATI", "DINAN RAHMAT PRATAMA", "DIVA PUTRI WARDANI", "FITRI NOVITA SARI", "HANUFI APRILIA KHAIRUNNISA", "HERY NURCAHYONO", "INAYA KHAIRUNNISA", "MUHAMMAD FAKHRI LUTHFI FIRDAUS", "NAYLA AFKHARINA NUR HUSNA", "NAYRA SHIDQIA ALKISSABA", "rizal bagus setiawan", "SILVINA APRILIA", "TIARA NUR'AINI", "TOHA KENZIE ABDILAH", "ZAHWA MEILIA PUTRI"] },
+            "3": { "1": ["ALLYSA QIANDRA SUGIYANTO", "AZIZAH NABILA SAPUTRI", "FILZAH NOVA SAFITRI", "HARRIS ALFIAN AKBAR FIRMANSYAH", "KEVIN EGA IBNUGROHO", "NAFISHA HASNA ADEEVA", "NAURA RANIAWAN"], "2": ["ABIYAN RASYA PUTRA KASANAH", "RENO AFANDI"], "3": ["ABRAHAM ALEXI PRATAMA", "ABYAZ ALBY PRATAMA", "ARFAN GYANENDRA KHAIRUNAS", "ASSYFA FEBY HANDINI", "KEISYA NADHIFA ALMAIRA", "MUHAMMAD NAILUL KAFA", "RAFANDA TIARA LARASATI", "REYNANTA ALFANABA", "SILVI PUTRI ROMADHONI", "UMAR ZAID TAJALI"], "4": ["AHMAD ADYA SURYA", "AISYAH DINDA AYU", "AL FARIZI KELLAN NOVENDRA", "ARIF GUSLIAN WIBISONO", "FADHEELA MISHA NAUFALYN", "HAFIDZ MUSTOFA", "MUHAMMAD YUSUF ARROMADHONI", "NURENDRA RAKA WIBOWO"], "5": ["APRILLIA ALISA PUTRI", "ASIFA NAILA ANASTASYA", "DAFFA PRATAMA ASHTER", "Daffa Saputra", "DZAKY ABIYYU ARZAN", "Elvina Khansa Putri", "Firnanda Aulia Safira", "Nafasya Ardifa Hafizah Putri", "Rasya Anandika Fahya Ramadani", "Rasyid Saputro", "ROFI DAFFA RAKHMATULLOH", "Vania Cantika Aullia", "Wahyu Nur Hidayat", "ZAKI PRADANA PUTRA"], "6": ["Abdul Karim Maaris", "ARLAN GIRI PRATAMA", "EKA ADITYA PRATAMA", "Hariyani Gizella Afrillia", "INAS SYIFA MIFTAHUL JANNAH", "Mahesa Putra Utama", "Mahesa Tristan Putra Yudanta", "MAULIDA SYAFINATUL ZAHRA", "MUHAMMAD IMAM MAULANA", "SHERLYNA NUR YASMINE"] },
+            "4": { "1": ["ANDI AQMAR FARIST", "ANNISKA PUTRI", "ATHAYA NABIL MUSTAFA", "GEIBRIEL PUTRA PAMUNGKAS", "REVI HANA ANGELIA", "VICKY FAZRIN"], "2": ["ABDILLAH ALZAIDAN", "ALTHAF RIFQIE ABRISAM", "AQILLA NUR DWI HARYADI", "ARSIFA WAHYU FATIYATURAHMA", "AZKADINA KHANZA MUTIARA", "ERLITA ARSYFA CAHYANI", "MUHAMMAD RIJAL HAFIDZUL FU’AD"], "3": ["ALYANSYAH RAUDHATUL JANNAH", "DIAZ ARDANA", "JAMI ATUN KASANAH", "KHANSA KHAIRUNISA SALSABILA", "NIZAM ZAID FIRDAUS", "OSCA WILSON", "SHAKILA AKIFA HAFLANI", "SOFIA NUR FATIMAH", "VALLENTINO ROSSI"], "4": ["ANNISA AZ ZAHRA", "LUTHFIA MARWADHATUL KHASANAH", "MUHAMMAD VARO ALKHALIFI"], "5": ["AHMAD DJALU PURNOMO", "ALIF RIZKY SUSILO", "AMELIA SETYA DAMAYANTI", "ATHIFA WAHYU AZARINE", "BINTANG BAGAS SAPUTRA", "FAQIH NAUVAL AKBARURROHMAN", "MAZIDAH FADHILATUS SA'IDAH", "YUMNA YASMIN LULU MUMTAZAH", "ZASKIA JANUAR TRI PRANANTI", "ZERINA AYUNINGTYAS"], "6": ["AQIILA FATIN CANDRADEVI", "FRANSKIANO TEGAR AJI SAPUTRA", "MAHEZA PRATAMA", "NABILA ZAKIYA", "NAJWA HUMAIRA SYAFIRA", "WINANDA AISYAH", "EARLYTA SAFA ATTHAHIRA"] },
+            "5": { "1": ["ABIZAR RASYDAN AHNAF", "AISHA AZKAYRA KARIM", "ALFARA REINA PUTRI", "ALVINO RIZKI RAMADHAN PAKPAHAN", "ALYA NABILLA ASWOKO", "ANNAILA AISYAH", "APSA CAKRA WARDANA", "AQILA HANINDYA ELFARIZKY", "ARKAREGA ALDI WIJAYA", "ATHAFARIS DAFA FEBRIAN", "AURELINO NIZAR ALFARIZI", "BRIGIFA USWATUN KHASANAH", "CHELSY ARSHICA DHEALOVA", "DEFAN FERNANDO", "DINDA SILVIA AZZAHRA", "FIRDA NATASYA MARFIANA", "FREDELLA NURIA SALMA", "GIBRAN MAULA ALFARIZI", "HARDIYANA AFITA PUTRI", "ICHI HIRO KOSHI PUTRA", "LAVINDI NURUL FATIMAH", "MIKAYLA VIONA ZAFIRA", "MOHAMMAD ARKA RAFFASYA", "RENALDI ATMA NEGARA", "RIKY SAPUTRA", "TAHLITA ELVINA BELVALIA", "UKHTINA NUR KHUMAIROH"], "2": ["AAN WIDIYO TETUKO", "ADAM ALDIANSYAH", "ADI HAFIN SAPUTRO", "ALIESHA NAZAHA SHAKERA", "ALIFAH NUR FARZANA", "ARJUNA BRIGIT REYNAND", "ARSYILA MISHALL QIRANI", "ASTYA OKTAVIANA ARTANTI", "BAGAS ADI PRASETYO", "DAVINKA REVAN SETIADI", "FAYRADISHA ARSYILA ARFAREZA", "LATHIEF MUHAMMAD ALFAHRUN", "LUTFIA ZAHRA THALITA", "MELODY AYUNINA", "NAVIZA ANMA WIDODO", "RAYYAN HANIF MUTTAQI", "RIFKY AGENG KUBRAH", "WINDU PRATAMA"], "3": ["AFRATA KHOIRUL DARWIS", "AHMAD AZZAM MAULANA", "AISYAH ZULKHA ANGGITA PRATIWI", "AJENG MEGA BILQIS", "ALEA KAHIYANG SULARSO", "ALVIRO ZEREGA PRATAMA", "ALWINA TUNGGA MUTIARA", "ANDIEN NADILA PUTRI", "ANUGRAH MUHAMAD GANI", "AULIA KHANZA PUTRI PURWADANI", "AULIA ZEA EVREN", "AZARINE ZAHRATUL MAULA", "AZZAHRA KAMILA MAHESWARI", "EVALINA AINULLATIF", "EVELIN SYAQILA SALSABILLA", "GIBRAN ARSYAKA ALFARIZI", "JHONATHAN FAJAR WILLIAM HABIBI", "KEISHA KHANZA ZAHRA", "NABILA AULIA SAPUTRI", "NAZRIL ILHAM", "TIARA PUTRI ANDINI", "WILDAN AQIL MAULANA"], "4": ["AFIFA ANANDA AURA", "AL AUSKIS KAYLA AZAHRA", "ALESHA KHALWA DWINARA", "ALFARONIZAM DAFI SETIAWAN", "ALIFA NAUFALIN AZZAHRA", "AQELA NI'MATUL ABIIDAH", "ASLAN GAVINDRA VAZQUEZ", "ATIQA RAHMAWATI", "EARLITA AURILE SETIARSYFA", "FADHIL ABIDUN PRANAJA", "FAJAR BAYU PAMUNGKAS", "GABY ABIDA SHAHILA", "GIBRAN AHMAD RAMADHAN", "GYSALE BILKHIS MAHARANI SURADI", "HANIFA SYIFA FAUZIAH", "HASNA SALSABILA", "IQBAL FAHREZI RAMADHAN", "KHALIF HAMIZAN IBRAHIM", "MUFIDA AULIA IZZATUNNISA", "MUHAMMAD ABDUL FIKRI", "MUHAMMAD ARIYA VAHEL", "NADYA ALYSSA AZZAHRA", "OKTAFIANA ANGGRAINY RIYANTO", "RAFASYA YUGA PRADHANA", "REYNATA SHAFIRA ADRIYANA", "TITO NUGROHO", "VEERANIKO FAIRUZ FAYYOLA", "WAZZA PRADHIBTA KURNIAWAN", "YUFRIDAN MAULANA INSAN"], "5": ["ALETHEA RAIN SULARSO", "ALVARO RAZQA DHAFIN PRADIPTA", "ASKA MIRZHA RAMADHAN", "AURA NUR ZHARIFA", "AZZAM NAUFAL ASSYAKUR", "BILQIS AULIA SAKI", "CHERYL KHANZA WIBOWO", "DZAKIR IZZATUL FADILAH", "MUHAMMAD ARIFIN", "NAILAH", "NIRMALA CINTA NUR AZIZAH", "NOVITASARI", "RADITYA YUGA PRAWIRA", "REHANA NUR FADILA", "REIHAN ASVERO", "RONAL AYYI BAYU PRASETYO", "SOCA IBADILLAH HARF", "THASYA ZANUARA ALLANA PRAMESWARI"], "6": ["AB'YAN HADIL MAHASIN", "ADERA RESTU NAFIS SETYAWAN", "AL KHOLIFI IBADURROHMAN", "ALIEF SABANA", "ARSYA EARLYTASARI ANANTA", "Asyifa Aqila Diandra", "DIBRAN SETIAWAN", "FABIZYO RAFIF DANENDRA", "FARIZ ABDUL AZIS", "GILANG BAGUS RAMADHAN", "HARDIYAN YOGA PRATAMA", "KHANZA AQILA PRAMUSITA", "LINGGA KHOSYI HABIBULLOH", "MEYSA MUTIARA WIDY", "MUHAMMAD LABIB", "MUHAMMAD WAHYU PRATAMA", "NAURA NADYFA AKMAL", "NIKO FATHI REZKY FADILLAH", "PRAYOGI SATRIA HERMAWAN", "RAHMAD DARMAWAN", "RAYYAN IRFAN AS SHIDDIQ", "YUMNA ALISTYA IZZATUNISSA"] },
+            "6": { "1": ["ALINA KIARA VARISHA", "ALMAQHFIRA HAIFA YASNA", "GHINA SALMA NAZHIFAH", "KANZA ADELIA NAIFAH", "MUHAMAD ILHAM ROMADHONI", "NUR HANIF", "YAZID FAIZ ALFARIZI", "ZULFA ULYA AZKIYA NUR ISMA"], "2": ["ADELIA KHOMSATUN KHASANAH", "AZKADINA KANZIA NADHIFAH", "BINTANG BAGUS ALVIANO", "FEBILA MARYAM PUTRI ANGGRAINI", "MAURA KESA RAHMADANI SEDIRO", "MUHAMAD HIZAM SYAPUTRA", "NUR AISYAH AJI WOBOWO", "RAFEL TYAS PRATAMA"], "3": ["Adiba Shakila Altmini", "AL RASYID MUSTOFA", "AZRIL MEKKA ADIWANGSA", "FAREYSA EMBUN QURROTAA'YUN", "FELISHA SALSABILA", "JASMIN HIRA ISNAINI", "MICHAEL AHMED IRSYAM", "NAGATHA NAESWARI DANISH", "NAWANG FACHRUL HAKIM", "NOVEL GERRY SYAHPUTRA", "VINA DWI GARNISA"], "4": ["ARSENIO NAUFAL ARYANSHA", "ASSIFA KHAURIN AIN", "AUFA RAHMADHANI", "BILQIS ASIAM ARDIAN SHILLA", "FAAIQ ARIIB PUTRO SUNARYO", "JAFAD ASSIROD LAIL", "NARENDRA DWI APRILIANTO", "QHORY FATINA NURAINI", "SHEIKA ALICE HAFIZAH", "AKIFA ATHALETA INARA MAHESWARI", "ALIF RIFKY MULYONO", "ANINDITA KEISHA AZ ZAHRA", "HAFIZ ADITYA RAMADHAN"], "5": ["ALFHATAN PASHA RAFISA ATRISNO", "FAIZAL IMAMMUL HAQIM", "GHAZIYHA TALITA HAFIZAH", "JIEHAN SHIDQIA INIESA YANURI", "MUHAMMAD ADIB ANSHARRY", "OCTAVIA SULISTYANTI", "RADITIYA PRATAMA", "RAYHAN ZULFAN AZHAR WIBOWO", "REFFI MAULANA", "ZULFADLI ARIEF MAULANA"], "6": ["ABIZZAR CHANDRA MUSTOFA", "ABYAN DZAKY ARDHANI", "AQILA PUTRI RAMADHANI", "DITA ADELYA AZAHRA", "EKA AGUSTINA RAHMAWATI", "ELVIANA PUTRI WIJAYANI PRATIWI", "HABIBI RABBANI AS-SYUJA SUNARTO", "KEYSHA AURA SEPTINA", "KIARA JEHAN TSABITA", "MARIA HESTI DEWI WULANDARI", "NAUFAL DANISWARA SUBAGYO"] },
+            "7": { "1": ["Abid Justin Gilbert", "Abizar Ihsan Muttaqi", "Albian Devin Arkananta", "Arista Putri Ramadhani", "Dwi Akbar Riskykam", "Faeyza Azka Pratama", "Fauzan Chasan Al Fauri", "Fredella Eka Saputri", "Kenzo Arifana", "Mikayla Nala Azzahra", "Muhammad Hafiz Al-Fatih", "Shesa Putri Junia Ramadhani"], "2": ["Akifa Nayla Sari", "Exel Varico Ezar", "Hanyfatul Xena Anisa", "Hisyam Zainudin Musthofa", "Naufal Dwi Wijaya", "Raffa Ardy Octavian", "Raka Putra Dewanta", "Ravhian Dhaffin Alvaroe", "Silvia Lila Sari", "Syamun Alghazi Syahiddatulloh"], "3": ["Aldriko Arga Brammasta", "Annisa Isnaini Meifina", "Aqila Misha Shafana", "Brillian Sangidah", "Daffa Muin Purnomo", "Eksan Bakti Saputro", "Nayaka Mei Triyani", "Raka Arsad Jati", "Ridwan Setiyoko", "Yoga Dwi Saputra"], "4": ["Adelia Faranisa Aznii", "Adiba Khanza Az Zahra", "Aisyah Ayudia Inara", "Aldi Rizky Afiyanto", "Alvino Reyhan Pratama", "Arya Saputra", "Assyfa Rizky Windiyana", "Daffa Husain Ramadhan", "Elden Muhammad Albert", "Khayla Naura Almanda", "Miftahu Nurul Huda", "Nur Muhammad Mirza Hakim", "Sinung Panji Asmara", "Tiara Zasy Salsabila"], "5": ["Adeva Aprilia Myesa", "Alfin Armando", "Azizah Bilkhusna", "Azka Putra Al Kohar Maheza", "Brillian Anshar Ansan", "Callestha Whijaya Rahmawati", "Fadhlih Ahsan Rosyadan", "Faiz Syaputra", "Fauzi Ibrahim", "Irfan Nur Anwar", "Jeklin Sebastiyan", "Marimbi Qolbi Hutomo", "Riski Catur Pamungkas"], "6": ["Ahmad Hasan Arifana", "Az Zahra Allifa Anggraini", "Devita Nadya Putri", "Dian May Setya Ningrum", "Fajril Irsyad Bukhori", "Hafizh Rizal Musthofa", "Marcell Dwindra Cahya Badaruni", "Muhammad Nur Amin", "Naeva Khairunnisa", "Nawa Dinata", "Nino Al Farizi", "Rizky Setiyawan", "Tiara Eka Safitri"] },
+            "8": { "1": ["Choir Vioni Istiqomah", "Farida Ardani", "Keanu Derran Premana", "Shafig Attaya Musa"], "2": ["Adhitama Elvan Syahresa", "Dzikri Jatmiko Ardiyansyah", "Fickhri Maulana Hanif", "Muhammad ilham Firdaus", "Muhammad Nasir"], "3": ["Ahmad Arfan Darmawan", "Ayra Mysha Naira", "Elvina Azzahra Ratifa", "Fathan Maulana Fadhil", "Fathiya Safiya Asyiqah", "Mehrunisa Betari", "Nadia larasati", "Rafania Putri Oktavia", "Salma Arofah Taubah", "Salsabila Nurmalia Ramadhani", "Shidan Daffa Al Marif", "Shinta Lutfitasari"], "4": ["Arsyel Camilla Canagulia", "Dantya Ailatu Mumtazah", "Deni Latif Prakoso", "Dinda Samara Fatikha", "Fajar Maulana Maliq Ibrahim", "Irsyad Fadil Rafandra", "Kholifah Yuli Andari", "Latifa Maura Zevanya", "Mirza Widi Atallah", "Muhammad Kenzie Alfarizie", "Muhammad Rafif Putra Wahyudi", "Rosyda Ayu Salsabila", "Royyan Rizki Pratama", "Yumna Shiqiyyah Ramadhani", "Zaidan Ahmad Hanafi"], "5": ["Abid Aqila Pranaja", "Alika Atta Fir Risqi", "Andini Charunia Safitri", "Arya Naylatul Khabibah", "Arsya Wahyu Ardiansyah", "Daffa Azka Putra Pratama", "Dante Novialdo Nur Rohman", "Dhina Dwi Nur Agustin", "Fabian Arga Pratama", "Faqih Khairy Rahman", "Fatimahtu Ahlil Jannah", "Jihan Widya Putri", "Khenza Algibran", "Lutfia Azzahra Junita Sari", "Najwa Mawaddah Sallsabila", "Wahyu Bakti Sukma Mulya", "Yahya Niko Darmawan"], "6": ["Aloysius Revano Wibowo", "Anindya Ayoe Mahila", "Aqila Nur Rah Mawati", "Attala Fatur Rochman", "Baskara Danuaji", "Daffa Fawwas Rizky", "Dantya Khalisya Af'tani", "Dilan Rafael", "Hanafi Ageng Dwi Prayugha", "Muhammad Qoirun Nashirin", "Muhammad Rayhan Abdul Azis", "Rania Keenan Putri Ramadhani", "Romadhon Reza Ardiansah", "Silvia Azhrini Sofianti"] },
+            "9": { "1": ["ABIZAR RASYDAN AHNAF", "AISHA AZKAYRA KARIM", "ALFARA REINA PUTRI", "ALVINO RIZKI RAMADHAN PAKPAHAN", "ALYA NABILLA ASWOKO", "ANNAILA AISYAH", "APSA CAKRA WARDANA", "AQILA HANINDYA ELFARIZKY", "ARKAREGA ALDI WIJAYA", "ATHAFARIS DAFA FEBRIAN", "AURELINO NIZAR ALFARIZI", "BRIGIFA USWATUN KHASANAH", "CHELSY ARSHICA DHEALOVA", "DEFAN FERNANDO", "DINDA SILVIA AZZAHRA", "FIRDA NATASYA MARFIANA", "FREDELLA NURIA SALMA", "GIBRAN MAULA ALFARIZI", "HARDIYANA AFITA PUTRI", "ICHI HIRO KOSHI PUTRA", "LAVINDI NURUL FATIMAH", "MIKAYLA VIONA ZAFIRA", "MOHAMMAD ARKA RAFFASYA", "RENALDI ATMA NEGARA", "RIKY SAPUTRA", "TAHLITA ELVINA BELVALIA", "UKHTINA NUR KHUMAIROH"], "2": ["AAN WIDIYO TETUKO", "ADAM ALDIANSYAH", "ADI HAFIN SAPUTRO", "ALIESHA NAZAHA SHAKERA", "ALIFAH NUR FARZANA", "ARJUNA BRIGIT REYNAND", "ARSYILA MISHALL QIRANI", "ASTYA OKTAVIANA ARTANTI", "BAGAS ADI PRASETYO", "DAVINKA REVAN SETIADI", "FAYRADISHA ARSYILA ARFAREZA", "LATHIEF MUHAMMAD ALFAHRUN", "LUTFIA ZAHRA THALITA", "MELODY AYUNINA", "NAVIZA ANMA WIDODO", "RAYYAN HANIF MUTTAQI", "RIFKY AGENG KUBRAH", "WINDU PRATAMA"], "3": ["AFRATA KHOIRUL DARWIS", "AHMAD AZZAM MAULANA", "AISYAH ZULKHA ANGGITA PRATIWI", "AJENG MEGA BILQIS", "ALEA KAHIYANG SULARSO", "ALVIRO ZEREGA PRATAMA", "ALWINA TUNGGA MUTIARA", "ANDIEN NADILA PUTRI", "ANUGRAH MUHAMAD GANI", "AULIA KHANZA PUTRI PURWADANI", "AULIA ZEA EVREN", "AZARINE ZAHRATUL MAULA", "AZZAHRA KAMILA MAHESWARI", "EVALINA AINULLATIF", "EVELIN SYAQILA SALSABILLA", "GIBRAN ARSYAKA ALFARIZI", "JHONATHAN FAJAR WILLIAM HABIBI", "KEISHA KHANZA ZAHRA", "NABILA AULIA SAPUTRI", "NAZRIL ILHAM", "TIARA PUTRI ANDINI", "WILDAN AQIL MAULANA"], "4": ["AFIFA ANANDA AURA", "AL AUSKIS KAYLA AZAHRA", "ALESHA KHALWA DWINARA", "ALFARONIZAM DAFI SETIAWAN", "ALIFA NAUFALIN AZZAHRA", "AQELA NI'MATUL ABIIDAH", "ASLAN GAVINDRA VAZQUEZ", "ATIQA RAHMAWATI", "EARLITA AURILE SETIARSYFA", "FADHIL ABIDUN PRANAJA", "FAJAR BAYU PAMUNGKAS", "GABY ABIDA SHAHILA", "GIBRAN AHMAD RAMADHAN", "GYSALE BILKHIS MAHARANI SURADI", "HANIFA SYIFA FAUZIAH", "HASNA SALSABILA", "IQBAL FAHREZI RAMADHAN", "KHALIF HAMIZAN IBRAHIM", "MUFIDA AULIA IZZATUNNISA", "MUHAMMAD ABDUL FIKRI", "MUHAMMAD ARIYA VAHEL", "NADYA ALYSSA AZZAHRA", "OKTAFIANA ANGGRAINY RIYANTO", "RAFASYA YUGA PRADHANA", "REYNATA SHAFIRA ADRIYANA", "TITO NUGROHO", "VEERANIKO FAIRUZ FAYYOLA", "WAZZA PRADHIBTA KURNIAWAN", "YUFRIDAN MAULANA INSAN"], "5": ["ALETHEA RAIN SULARSO", "ALVARO RAZQA DHAFIN PRADIPTA", "ASKA MIRZHA RAMADHAN", "AURA NUR ZHARIFA", "AZZAM NAUFAL ASSYAKUR", "BILQIS AULIA SAKI", "CHERYL KHANZA WIBOWO", "DZAKIR IZZATUL FADILAH", "MUHAMMAD ARIFIN", "NAILAH", "NIRMALA CINTA NUR AZIZAH", "NOVITASARI", "RADITYA YUGA PRAWIRA", "REHANA NUR FADILA", "REIHAN ASVERO", "RONAL AYYI BAYU PRASETYO", "SOCA IBADILLAH HARF", "THASYA ZANUARA ALLANA PRAMESWARI"], "6": ["AB'YAN HADIL MAHASIN", "ADERA RESTU NAFIS SETYAWAN", "AL KHOLIFI IBADURROHMAN", "ALIEF SABANA", "ARSYA EARLYTASARI ANANTA", "Asyifa Aqila Diandra", "DIBRAN SETIAWAN", "FABIZYO RAFIF DANENDRA", "FARIZ ABDUL AZIS", "GILANG BAGUS RAMADHAN", "HARDIYAN YOGA PRATAMA", "KHANZA AQILA PRAMUSITA", "LINGGA KHOSYI HABIBULLOH", "MEYSA MUTIARA WIDY", "MUHAMMAD LABIB", "MUHAMMAD WAHYU PRATAMA", "NAURA NADYFA AKMAL", "NIKO FATHI REZKY FADILLAH", "PRAYOGI SATRIA HERMAWAN", "RAHMAD DARMAWAN", "RAYYAN IRFAN AS SHIDDIQ", "YUMNA ALISTYA IZZATUNISSA"] }
+        };
+
+        const DATABASE_GURU = [
+            { name: "Iis Gayatri", user: "guru001", pass: "123456", schoolId: 1, classId: "1" },
+            { name: "Trio Joko Murtopo", user: "guru002", pass: "123456", schoolId: 1, classId: "2" },
+            { name: "Dwi Handayani", user: "guru003", pass: "123456", schoolId: 1, classId: "3" },
+            { name: "Kunthi Ratna Wulandari", user: "guru004", pass: "123456", schoolId: 1, classId: "4" },
+            { name: "Catur Prasetyo", user: "guru005", pass: "123456", schoolId: 1, classId: "5" },
+            { name: "Sigit Surya Wibowo", user: "guru006", pass: "123456", schoolId: 1, classId: "6" },
+            { name: "Iim Fatimah", user: "guru001", pass: "123456", schoolId: 2, classId: "1" },
+            { name: "Ariffudin Musthofa Basri", user: "guru002", pass: "123456", schoolId: 2, classId: "2" },
+            { name: "Rufik Zainal Azizah", user: "guru003", pass: "123456", schoolId: 2, classId: "3" },
+            { name: "Risna Yustiana", user: "guru004", pass: "123456", schoolId: 2, classId: "4" },
+            { name: "Ayu Novitasari", user: "guru005", pass: "123456", schoolId: 2, classId: "5" },
+            { name: "E.Tri Maya Idawati", user: "guru006", pass: "123456", schoolId: 2, classId: "6" },
+            { name: "Sri Sadini", user: "srisadini67@gmail.com", pass: "Sdnegeribener3_", schoolId: 3, classId: "1" },
+            { name: "Teguh Tutuko", user: "isna.teguh@gmail.com", pass: "Sdnegeribener3_", schoolId: 3, classId: "2" },
+            { name: "C.Lanjar Waluyo Yahmanto Putro", user: "velisaaulia@gmail.com", pass: "Sdnegeribener3_", schoolId: 3, classId: "3" },
+            { name: "ADE MULTI DAVISTA SARI", user: "adesari879@gmail.com", pass: "Sdnegeribener3_", schoolId: 3, classId: "4" },
+            { name: "ASZA RISA SANTIKA", user: "aszarisa@gmail.com", pass: "Sdnegeribener3_", schoolId: 3, classId: "5" },
+            { name: "Suparmi", user: "suparmi.bella@gmail.com", pass: "Sdnegeribener3_", schoolId: 3, classId: "6" },
+            { name: "Sri Nurwati", user: "guru001", pass: "123456", schoolId: 4, classId: "1" },
+            { name: "Ninik Yuliyani", user: "guru002", pass: "123456", schoolId: 4, classId: "2" },
+            { name: "Michael Indra Permana", user: "guru003", pass: "123456", schoolId: 4, classId: "3" },
+            { name: "Muhammad Subqi", user: "guru004", pass: "123456", schoolId: 4, classId: "4" },
+            { name: "Dita Apriliya Helmy", user: "guru005", pass: "123456", schoolId: 4, classId: "5" },
+            { name: "Agus Purwono", user: "guru006", pass: "123456", schoolId: 4, classId: "6" },
+            { name: "Khusnul Khotimah", user: "GuruKelas1", pass: "Kebonromo1", schoolId: 5, classId: "1" },
+            { name: "Agita Fajar Aryanti", user: "GuruKelas2", pass: "Kebonromo1", schoolId: 5, classId: "2" },
+            { name: "Danang Setiyanto", user: "GuruKelas3", pass: "Kebonromo1", schoolId: 5, classId: "3" },
+            { name: "Berlyan Galih Hayu Wicaksana", user: "GuruKelas4", pass: "Kebonromo1", schoolId: 5, classId: "4" },
+            { name: "Adita Ikraminawati", user: "GuruKelas5", pass: "Kebonromo1", schoolId: 5, classId: "5" },
+            { name: "Titis Kurnia Ramadhani", user: "GuruKelas6", pass: "Kebonromo1", schoolId: 5, classId: "6" },
+            { name: "Srirahayu", user: "GuruKelas1", pass: "Kebonromo2", schoolId: 6, classId: "1" },
+            { name: "Rizkia aulia nisa", user: "GuruKelas2", pass: "Kebonromo2", schoolId: 6, classId: "2" },
+            { name: "Anisa rahmawati", user: "GuruKelas3", pass: "Kebonromo2", schoolId: 6, classId: "3" },
+            { name: "Novi windri hastanti", user: "GuruKelas4", pass: "Kebonromo2", schoolId: 6, classId: "4" },
+            { name: "Dwi putro atmojo", user: "GuruKelas5", pass: "Kebonromo2", schoolId: 6, classId: "5" },
+            { name: "Monica ardi wisnu murti", user: "GuruKelas6", pass: "Kebonromo2", schoolId: 6, classId: "6" },
+            { name: "Dwi Handayani", user: "GuruKelas1", pass: "Kebonromo3", schoolId: 7, classId: "1" },
+            { name: "Nur Fitria Handayani", user: "GuruKelas2", pass: "Kebonromo3", schoolId: 7, classId: "2" },
+            { name: "Heni Puspandari", user: "GuruKelas3", pass: "Kebonromo3", schoolId: 7, classId: "3" },
+            { name: "Sri Handayani", user: "GuruKelas4", pass: "Kebonromo3", schoolId: 7, classId: "4" },
+            { name: "Umi Alimah Milansari", user: "GuruKelas5", pass: "Kebonromo3", schoolId: 7, classId: "5" },
+            { name: "Pebriana Norma Sari", user: "GuruKelas6", pass: "Kebonromo3", schoolId: 7, classId: "6" },
+            { name: "Setiya Ning Rum Suparwati", user: "guru001", pass: "123456", schoolId: 8, classId: "1" },
+            { name: "Swan Dewi Indriani", user: "guru002", pass: "123456", schoolId: 8, classId: "2" },
+            { name: "Indah Dwi Safitri", user: "guru003", pass: "123456", schoolId: 8, classId: "3" },
+            { name: "Purnomo", user: "guru004", pass: "123456", schoolId: 8, classId: "4" },
+            { name: "Hesti Ratna Juwita", user: "guru005", pass: "123456", schoolId: 8, classId: "5" },
+            { name: "Mega Puspita Sari", user: "guru006", pass: "123456", schoolId: 8, classId: "6" },
+            { name: "Khusnul Khotimah", user: "GuruKelas1", pass: "Kebonromo5", schoolId: 9, classId: "1" },
+            { name: "Agita Fajar Aryanti", user: "GuruKelas2", pass: "Kebonromo5", schoolId: 9, classId: "2" },
+            { name: "Danang Setiyanto", user: "GuruKelas3", pass: "Kebonromo5", schoolId: 9, classId: "3" },
+            { name: "Berlyan Galih Hayu Wicaksana", user: "GuruKelas4", pass: "Kebonromo5", schoolId: 9, classId: "4" },
+            { name: "Adita Ikraminawati", user: "GuruKelas5", pass: "Kebonromo5", schoolId: 9, classId: "5" },
+            { name: "Titis Kurnia Ramadhani", user: "GuruKelas6", pass: "Kebonromo5", schoolId: 9, classId: "6" }
+        ];
+
+        const Icons = {
+            Sun: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M2 12h2"/><path d="M20 12h2"/></svg>,
+            Moon: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>,
+            Heart: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>,
+            Activity: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
+            Utensils: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>,
+            BookOpen: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+            Users: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>,
+            Check: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+            LogOut: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
+            School: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>,
+            ChevronDown: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+        };
+
+        const HABITS = [
+          { id: 'h1', title: 'Bangun Pagi', icon: Icons.Sun, color: 'text-yellow-500', desc: 'Target: 04.00 - 06.00', type: 'time' },
+          { id: 'h2', title: 'Beribadah', icon: Icons.Heart, color: 'text-purple-500', desc: 'Ibadah Harian', type: 'check' },
+          { id: 'h3', title: 'Berolahraga', icon: Icons.Activity, color: 'text-red-500', desc: 'Fisik Sehat', type: 'check' },
+          { id: 'h4', title: 'Makan Sehat', icon: Icons.Utensils, color: 'text-green-500', desc: 'Gizi Seimbang', type: 'check' },
+          { id: 'h5', title: 'Gemar Belajar', icon: Icons.BookOpen, color: 'text-blue-500', desc: 'Literasi Mandiri', type: 'check' },
+          { id: 'h6', title: 'Bermasyarakat', icon: Icons.Users, color: 'text-orange-500', desc: 'Sosial & Etika', type: 'check' },
+          { id: 'h7', title: 'Tidur Malam', icon: Icons.Moon, color: 'text-indigo-600', desc: 'Format 24 Jam', type: 'time' },
+        ];
+
+        // --- GLOBAL SYNC TO SHEET ---
+        const sendToSheet = async (payload) => {
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(payload)
+                });
+            } catch (e) {}
+        };
+
+        // --- COMPONENTS ---
+
+        function HabitSummary({ data }) {
+            if (!data) return null;
+            return (
+                <div className="space-y-2 text-left bg-slate-50 p-4 rounded-2xl border border-slate-100 mt-2">
+                    {HABITS.map(h => {
+                        const item = data[h.id];
+                        const statusColor = item?.status ? 'text-emerald-600 font-bold' : 'text-slate-400';
+                        return (
+                            <div key={h.id} className="flex justify-between items-center text-xs border-b border-white pb-2 last:border-0 last:pb-0">
+                                <span className="text-slate-500 flex items-center gap-2"><h.icon /> {h.title}</span>
+                                <span className={statusColor}>
+                                    {h.type === 'time' ? (item?.timeValue || '--:--') : (item?.status ? 'Ya' : 'Tidak')}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        }
+
+        function ValidationBox({ currentVal, onValidate, title = "Validasi:" }) {
+            return (
+                <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm mt-4">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 text-center">{title}</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                        {[
+                            { label: "Sangat Baik", value: "Sangat Baik", color: "bg-emerald-500", icon: "🌟" },
+                            { label: "Baik", value: "Baik", color: "bg-blue-500", icon: "👍" },
+                            { label: "Cukup", value: "Cukup", color: "bg-amber-500", icon: "😐" },
+                            { label: "Kurang", value: "Kurang", color: "bg-rose-500", icon: "💪" }
+                        ].map(opt => (
+                            <button key={opt.value} onClick={() => onValidate(opt.value)} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all active:scale-95 ${currentVal === opt.value ? `${opt.color} text-white border-transparent shadow-md` : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                                <span className="text-xl mb-1">{opt.icon}</span>
+                                <span className="text-[9px] font-bold uppercase">{opt.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        function PinModal({ school, onVerified, onCancel }) {
+            const [pin, setPin] = useState('');
+            const [error, setError] = useState(false);
+            const handleVerify = () => {
+                if (pin.trim().toUpperCase() === (school?.pin || "").trim().toUpperCase()) onVerified();
+                else { setError(true); setTimeout(() => setError(false), 1000); }
+            };
+            return (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in-up">
+                    <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center text-slate-800">
+                        <h3 className="text-xl font-bold mb-2 uppercase">{school?.name}</h3>
+                        <p className="text-slate-500 text-sm mb-6">Masukkan PIN Sekolah</p>
+                        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleVerify()} placeholder="PIN" className={`w-full px-4 py-4 bg-slate-50 border rounded-2xl text-center text-2xl tracking-[0.5em] font-bold outline-none transition-all ${error ? 'border-red-500 ring-2 ring-red-100' : 'focus:border-blue-500'}`} />
+                        <div className="flex gap-3 mt-8">
+                            <button onClick={onCancel} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold uppercase text-xs">Batal</button>
+                            <button onClick={handleVerify} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold uppercase text-xs">Masuk</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function PortalView({ onSelectSchool }) {
+            const [search, setSearch] = useState('');
+            const filtered = GUGUS_SCHOOLS.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
+
+            return (
+                <div className="min-h-screen pb-20">
+                    <header className="bg-blue-700 text-white py-16 px-4 text-center">
+                        <div className="max-w-6xl mx-auto">
+                            <div className="bg-white/10 inline-block p-3 rounded-2xl mb-4 backdrop-blur-md"><Icons.School /></div>
+                            <h1 className="text-3xl md:text-5xl font-extrabold mb-3 tracking-tight text-white uppercase">GUGUS ANGGREK</h1>
+                            <p className="text-blue-100 font-medium uppercase tracking-wide">Portal Jurnal Pembiasaan Karakter</p>
+                        </div>
+                    </header>
+                    <main className="max-w-6xl mx-auto px-4 -mt-10">
+                        <div className="bg-white p-4 rounded-2xl shadow-xl mb-10 flex items-center gap-3">
+                            <svg className="text-slate-400 ml-2" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                            <input type="text" placeholder="Cari nama sekolah..." value={search} onChange={(e) => setSearch(e.target.value)} className="flex-1 outline-none text-slate-700 font-medium py-1 px-2"/>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {filtered.map(school => (
+                                <div key={school.id} onClick={() => onSelectSchool(school)} className="school-card bg-white p-6 rounded-3xl border border-slate-100 shadow-sm cursor-pointer flex flex-col items-center text-center animate-fade-in-up hover:border-blue-200 hover:shadow-lg transition-all">
+                                    <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4"><Icons.School /></div>
+                                    <h3 className="font-bold text-slate-900 leading-tight mb-4 uppercase">{school.name}</h3>
+                                    <button className="mt-auto w-full py-2.5 bg-slate-50 text-blue-600 font-bold rounded-xl text-sm transition-all hover:bg-blue-600 hover:text-white uppercase">Akses Portal</button>
+                                </div>
+                            ))}
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        function ParentDashboard({ user, school, onExit, db, appId }) {
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [log, setLog] = useState(null);
+
+            useEffect(() => {
+                const studentSafeId = user.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const logPath = doc(db, 'artifacts', appId, 'public', 'data', 'daily_logs', `log_${school.id}_${studentSafeId}_${date}`);
+                return onSnapshot(logPath, (snapshot) => setLog(snapshot.exists() ? snapshot.data() : null));
+            }, [user.name, school.id, date]);
+
+            const handleValidation = async (val) => {
+                const studentSafeId = user.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const logPath = doc(db, 'artifacts', appId, 'public', 'data', 'daily_logs', `log_${school.id}_${studentSafeId}_${date}`);
+                try { 
+                    await setDoc(logPath, { parentValidation: val }, { merge: true }); 
+                    sendToSheet({ role: 'parent', date, studentName: user.name, classId: user.classId, schoolName: school.name, parentValidation: val });
+                } catch (e) {}
+            };
+
+            return (
+                <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col animate-fade-in-up">
+                    <header className="glass-header text-white p-6 rounded-b-[2rem]">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-3 font-bold text-white"><Icons.Heart /> Portal Orang Tua</div>
+                            <button onClick={onExit}><Icons.LogOut /></button>
+                        </div>
+                        <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm text-sm">
+                            <p className="text-[10px] uppercase font-bold opacity-70 text-white">Nama Anak</p>
+                            <h3 className="font-bold uppercase text-white">{user.name}</h3>
+                            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full mt-2 bg-transparent text-white font-bold outline-none cursor-pointer"/>
+                        </div>
+                    </header>
+                    <main className="p-6 flex-1">
+                        {!log ? <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200"><p className="text-slate-400 italic text-sm">Jurnal belum diisi oleh ananda hari ini.</p></div> : (
+                            <div className="space-y-4">
+                                <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+                                    <h3 className="font-bold text-slate-800 text-[10px] mb-3 uppercase flex items-center gap-2 text-blue-600"><Icons.BookOpen /> Hasil Isian Ananda:</h3>
+                                    <HabitSummary data={log} />
+                                </div>
+                                <ValidationBox currentVal={log.parentValidation} onValidate={handleValidation} title="Validasi Orang Tua:" />
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        function TeacherDashboard({ user, school, onExit, db, appId }) {
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [studentLogs, setStudentLogs] = useState([]);
+            const [expandedId, setExpandedId] = useState(null);
+            const studentsInClass = useMemo(() => DATABASE_SISWA[school.id.toString()]?.[user.classId] || [], [school.id, user.classId]);
+
+            const fetchLogs = useCallback(async () => {
+                const logs = [];
+                for (const student of studentsInClass) {
+                    const studentSafeId = student.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                    const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'daily_logs', `log_${school.id}_${studentSafeId}_${date}`));
+                    logs.push({ id: studentSafeId, name: student, filled: snap.exists(), data: snap.exists() ? snap.data() : null });
+                }
+                setStudentLogs(logs);
+            }, [studentsInClass, date, school.id, appId, db]);
+
+            useEffect(() => { fetchLogs(); }, [fetchLogs]);
+
+            const handleTeacherValidation = async (studentName, val) => {
+                const studentSafeId = studentName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const logPath = doc(db, 'artifacts', appId, 'public', 'data', 'daily_logs', `log_${school.id}_${studentSafeId}_${date}`);
+                try {
+                    await setDoc(logPath, { teacherValidation: val }, { merge: true });
+                    sendToSheet({ role: 'teacher', date, studentName, classId: user.classId, teacherValidation: val });
+                    fetchLogs(); 
+                } catch (e) {}
+            };
+
+            return (
+                <div className="max-w-2xl mx-auto min-h-screen bg-slate-50 animate-fade-in-up">
+                    <header className="glass-header text-white p-6 rounded-b-[2rem]">
+                        <div className="flex justify-between items-center mb-4 text-white">
+                            <div><h2 className="font-bold text-lg text-white">{user.name}</h2><p className="text-xs text-white">Wali Kelas {user.classId} - {school.name}</p></div>
+                            <button onClick={onExit}><Icons.LogOut /></button>
+                        </div>
+                        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-transparent font-bold outline-none text-sm cursor-pointer text-white"/>
+                    </header>
+                    <main className="p-6 pb-24">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><Icons.Users /> Daftar Siswa</h3>
+                            <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-3 py-1 rounded-full">{studentLogs.filter(l => l.filled).length}/{studentsInClass.length} Terisi</span>
+                        </div>
+                        <div className="grid gap-3">
+                            {studentLogs.map((item) => (
+                                <div key={item.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden transition-all">
+                                    <div onClick={() => setExpandedId(expandedId === item.id ? null : item.id)} className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50">
+                                        <div className="flex-1 overflow-hidden pr-2">
+                                            <p className="font-bold text-sm truncate uppercase">{item.name}</p>
+                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full ${item.filled ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>{item.filled ? 'TERISI' : 'BELUM'}</span>
+                                                {item.data?.parentValidation && <span className="text-[8px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">ORTU: {item.data.parentValidation}</span>}
+                                                {item.data?.teacherValidation && <span className="text-[8px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600">GURU: {item.data.teacherValidation}</span>}
+                                            </div>
+                                        </div>
+                                        <div className={`transition-transform duration-300 ${expandedId === item.id ? 'rotate-180' : ''}`}><Icons.ChevronDown /></div>
+                                    </div>
+                                    {expandedId === item.id && (
+                                        <div className="px-5 pb-6 animate-fade-in-up border-t border-slate-50 pt-4 bg-slate-50/30">
+                                            {item.filled ? (
+                                                <>
+                                                    <HabitSummary data={item.data} />
+                                                    <ValidationBox currentVal={item.data?.teacherValidation} onValidate={(val) => handleTeacherValidation(item.name, val)} title="Validasi Wali Kelas:" />
+                                                </>
+                                            ) : (
+                                                <div className="py-4 text-center bg-white rounded-2xl border border-slate-100"><p className="text-[11px] text-slate-400 italic">Siswa belum mengisi jurnal hari ini.</p></div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        function JurnalDashboard({ user, school, onExit, db, appId }) {
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [log, setLog] = useState({});
+            const [filled, setFilled] = useState(false);
+
+            useEffect(() => {
+                const studentSafeId = user.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                return onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'daily_logs', `log_${school.id}_${studentSafeId}_${date}`), snap => {
+                    setLog(snap.exists() ? snap.data() : {});
+                    setFilled(snap.exists());
+                });
+            }, [user.name, date, school.id]);
+
+            const handleSave = async (habitData) => {
+                const studentSafeId = user.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                try {
+                    // Skor perhitungan sederhana
+                    const totalHabits = HABITS.length;
+                    const doneCount = Object.values(habitData).filter(h => h.status).length;
+                    const score = Math.round((doneCount / totalHabits) * 100);
+
+                    const savePayload = { 
+                        ...habitData, 
+                        role: 'student',
+                        date, 
+                        studentName: user.name, 
+                        schoolId: school.id, 
+                        schoolName: school.name, 
+                        classId: user.classId, 
+                        score,
+                        timestamp: new Date().toISOString() 
+                    };
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'daily_logs', `log_${school.id}_${studentSafeId}_${date}`), savePayload);
+                    sendToSheet(savePayload);
+                    alert("Jurnal Pembiasaan Berhasil Disimpan!");
+                } catch(e) {}
+            };
+
+            return (
+                <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col animate-fade-in-up text-slate-800">
+                    <header className="glass-header text-white p-6 rounded-b-[2rem]">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="text-white"><h2 className="font-bold text-sm uppercase text-white">{school.name}</h2><p className="text-[10px] text-white">Kelas {user.classId}</p></div>
+                            <button onClick={onExit}><Icons.LogOut /></button>
+                        </div>
+                        <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-sm text-sm">
+                            <span className="font-bold uppercase text-white">{user.name}</span>
+                            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-transparent font-bold outline-none text-right w-full mt-2 cursor-pointer text-white"/>
+                        </div>
+                    </header>
+                    <main className="p-6 flex-1 space-y-4">
+                        {filled && <div className="bg-emerald-50 text-emerald-700 p-4 rounded-2xl text-center font-bold text-sm">✅ Jurnal hari ini sudah terisi.</div>}
+                        {HABITS.map(h => {
+                            const item = log[h.id] || { status: false, timeValue: '' };
+                            return (
+                                <div key={h.id} className="bg-white rounded-2xl p-4 border border-slate-100 flex items-center gap-4 shadow-sm">
+                                    <div className={`p-3 rounded-xl bg-slate-50 ${h.color}`}><h.icon /></div>
+                                    <div className="flex-1"><h4 className="font-bold text-sm">{h.title}</h4><p className="text-[10px] text-slate-400">{h.desc}</p></div>
+                                    <div className="flex items-center gap-2">
+                                        {h.type === 'time' && (
+                                            <div className="flex flex-col items-end">
+                                                <input type="time" value={item.timeValue || ''} onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    const [hh] = val.split(':').map(Number);
+                                                    let status = (h.id === 'h1' ? (hh >= 4 && hh <= 6) : (h.id === 'h7' ? (hh >= 19 && hh <= 23 || hh >= 0 && hh <= 1) : (val !== '')));
+                                                    setLog({...log, [h.id]: {status, timeValue: val}});
+                                                }} disabled={filled} className="text-xs font-bold text-blue-600 bg-blue-50 p-1.5 rounded-lg border-none outline-none"/>
+                                                <span className="text-[7px] text-slate-300 mt-0.5 font-bold">24 Jam</span>
+                                            </div>
+                                        )}
+                                        <button disabled={filled || h.type === 'time'} onClick={() => setLog({...log, [h.id]: {status: !item.status}})} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${item.status ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-300'}`}>{item.status ? <Icons.Check /> : <div className="w-3 h-3 rounded-full border-2 border-slate-200" />}</button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {!filled && <button onClick={() => handleSave(log)} className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-xl mt-4 uppercase text-sm tracking-widest">Simpan Jurnal</button>}
+                    </main>
+                </div>
+            );
+        }
+
+        // --- MAIN APP ---
+        function App() {
+            const firebaseConfig = JSON.parse(__firebase_config || '{}');
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'gugus-anggrek-jurnal';
+            const app = useMemo(() => initializeApp(firebaseConfig), [firebaseConfig]);
+            const auth = useMemo(() => getAuth(app), [app]);
+            const db = useMemo(() => getFirestore(app), [app]);
+
+            const [selectedSchool, setSelectedSchool] = useState(null);
+            const [showPinModal, setShowPinModal] = useState(false);
+            const [step, setStep] = useState('portal'); 
+            const [selectedRole, setSelectedRole] = useState('');
+            const [appUser, setAppUser] = useState(null);
+            const [guruUser, setGuruUser] = useState('');
+            const [guruPass, setGuruPass] = useState('');
+            const [loginError, setLoginError] = useState('');
+            const [selectedClass, setSelectedClass] = useState('');
+
+            useEffect(() => {
+                const initAuth = async () => {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+                    else await signInAnonymously(auth);
+                };
+                initAuth();
+            }, [auth]);
+
+            const availableClasses = useMemo(() => selectedSchool ? Object.keys(DATABASE_SISWA[selectedSchool.id.toString()] || {}) : [], [selectedSchool]);
+            const availableStudents = useMemo(() => (selectedSchool && selectedClass) ? DATABASE_SISWA[selectedSchool.id.toString()][selectedClass] || [] : [], [selectedSchool, selectedClass]);
+
+            const handleTeacherLogin = () => {
+                const findGuru = DATABASE_GURU.find(g => 
+                    g.user.toLowerCase().trim() === guruUser.toLowerCase().trim() && 
+                    String(g.pass).trim() === String(guruPass).trim() && 
+                    g.schoolId === selectedSchool.id
+                );
+                if (findGuru) { setAppUser(findGuru); setStep('dashboard-guru'); } 
+                else { setLoginError('ID atau Password salah.'); setTimeout(() => setLoginError(''), 2000); }
+            };
+
+            if (step === 'portal') return <><PortalView onSelectSchool={(s) => { setSelectedSchool(s); setShowPinModal(true); }} />{showPinModal && <PinModal school={selectedSchool} onVerified={() => { setShowPinModal(false); setStep('role-selection'); }} onCancel={() => setShowPinModal(false)} />}</>;
+            
+            if (step === 'role-selection') return (
+                <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+                    <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center animate-fade-in-up text-slate-800">
+                        <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6"><Icons.School /></div>
+                        <h2 className="text-2xl font-extrabold mb-1">Pilih Akses</h2>
+                        <p className="text-slate-500 text-sm mb-10 uppercase tracking-tight">{selectedSchool?.name}</p>
+                        <div className="space-y-3">
+                            <button onClick={() => { setSelectedRole('siswa'); setStep('login-generic'); }} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all uppercase text-xs tracking-widest"><Icons.Users /> Portal Siswa</button>
+                            <button onClick={() => { setSelectedRole('ortu'); setStep('login-generic'); }} className="w-full py-5 bg-emerald-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all uppercase text-xs tracking-widest"><Icons.Heart /> Portal Orang Tua</button>
+                            <button onClick={() => setStep('login-guru')} className="w-full py-5 bg-slate-800 text-white rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all uppercase text-xs tracking-widest"><Icons.School /> Wali Kelas</button>
+                            <button onClick={() => setStep('portal')} className="w-full py-2 text-slate-400 text-[10px] mt-4 font-bold uppercase tracking-widest">← Ganti Sekolah</button>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            if (step === 'login-guru') return (
+                <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 text-slate-800">
+                    <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm animate-fade-in-up">
+                        <h2 className="text-xl font-bold text-center mb-8 uppercase">Login Wali Kelas</h2>
+                        <div className="space-y-4">
+                            <input type="text" placeholder="Username / Email Guru" value={guruUser} onChange={e => setGuruUser(e.target.value)} className="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" />
+                            <input type="password" placeholder="Password" value={guruPass} onChange={e => setGuruPass(e.target.value)} className="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" />
+                            {loginError && <p className="text-red-500 text-[10px] text-center font-bold uppercase">{loginError}</p>}
+                            <button onClick={handleTeacherLogin} className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg active:scale-95 transition-all uppercase text-xs">Masuk Dashboard</button>
+                            <button onClick={() => setStep('role-selection')} className="w-full py-2 text-slate-400 text-[10px] font-bold uppercase tracking-widest text-center block">Kembali</button>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            if (step === 'login-generic') return (
+                <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+                    <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm animate-fade-in-up text-slate-800">
+                        <h2 className="text-xl font-bold text-center mb-8 uppercase">{selectedRole === 'ortu' ? 'Orang Tua' : 'Login Siswa'}</h2>
+                        <div className="space-y-5">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block tracking-widest">Pilih Kelas</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {availableClasses.map(c => <button key={c} onClick={() => setSelectedClass(c)} className={`py-2 rounded-xl font-bold text-sm border transition-all ${selectedClass === c ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' : 'bg-white text-slate-500 border-slate-100'}`}>{c}</button>)}
+                                </div>
+                            </div>
+                            {selectedClass && (
+                                <div className="animate-fade-in-up">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block tracking-widest">Pilih Nama Siswa</label>
+                                    <div className="max-h-64 overflow-y-auto space-y-2 pr-1 student-list-container">
+                                        {availableStudents.map(name => <button key={name} onClick={() => { setAppUser({ name, classId: selectedClass }); setStep(selectedRole === 'ortu' ? 'dashboard-ortu' : 'dashboard-siswa'); }} className="w-full p-3 border border-slate-100 rounded-xl text-left text-[11px] font-bold text-slate-700 hover:bg-blue-50 transition-all uppercase">{name}</button>)}
+                                    </div>
+                                </div>
+                            )}
+                            <button onClick={() => { setStep('role-selection'); setSelectedClass(''); }} className="w-full py-2 text-slate-400 text-[10px] text-center font-bold uppercase tracking-widest mt-4">Kembali</button>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            if (step === 'dashboard-guru') return <TeacherDashboard user={appUser} school={selectedSchool} onExit={() => { setStep('portal'); setAppUser(null); }} db={db} appId={appId} />;
+            if (step === 'dashboard-ortu') return <ParentDashboard user={appUser} school={selectedSchool} onExit={() => { setStep('portal'); setAppUser(null); }} db={db} appId={appId} />;
+            if (step === 'dashboard-siswa') return <JurnalDashboard user={appUser} school={selectedSchool} onExit={() => { setStep('portal'); setAppUser(null); }} db={db} appId={appId} />;
+            
+            return <div className="h-screen flex items-center justify-center text-slate-300 font-bold animate-pulse text-xs tracking-widest uppercase">Memproses Data Portal...</div>;
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
